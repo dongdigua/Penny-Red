@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import rfc822
-import StringIO
+import email.message
+import io
 import subprocess
 import sys
 
@@ -14,19 +14,20 @@ token_status = []
 
 # converting a list to a file-type object for parsing rfc822 headers
 original = sys.stdin.read()
-emailmsg = StringIO.StringIO(''.join(original))
-message = rfc822.Message(emailmsg)
+# emailmsg = io.StringIO(''.join(original))
+message = email.message_from_string(original)
+
 
 # check for the presence of "X-Hashcash" and "Hashcash" headers
 # and extract only matches from EMAILADDR
-if message.has_key("X-Hashcash"):
-    for hc_list in message.getheaders("X-Hashcash"):
+if "X-Hashcash" in message.keys():
+    for hc_list in message.get_all("X-Hashcash"):
         if hc_list.split(":")[3] in EMAILADDR:
             tokens.append(hc_list)
-if message.has_key("Hashcash"):
-    for hc_list in message.getheaders("Hashcash"):
-        if hc_list.split(":")[3] in EMAILADDR:
-            tokens.append(hc_list)
+# if message.has_key("Hashcash"):
+#     for hc_list in message.getheaders("Hashcash"):
+#         if hc_list.split(":")[3] in EMAILADDR:
+#             tokens.append(hc_list)
 
 # check each token
 if tokens:
@@ -36,14 +37,15 @@ if tokens:
         emailaddr = token.split(":")[3]
         p = subprocess.Popen(COMMAND % (bits, emailaddr, token),
             shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-        out = p.stderr.read().strip()
+        out = p.stderr.read().strip().decode('ascii')
         token_status.append(out)
     token_status.append("[-- End Hashcash output --]")
 
-print >> sys.stdout, ''.join(message.headers)
+headers_str = "\n".join(f"{key}: {value}" for key, value in message.items())
+print(headers_str)
+print('')
 for status in token_status:
-    print >> sys.stdout, ''.join(status)
+    print(status)
 if tokens:
-    print ''
-emailmsg.seek(message.startofbody)
-print >> sys.stdout, ''.join(emailmsg.readlines())
+    print('')
+print(message.get_payload())
